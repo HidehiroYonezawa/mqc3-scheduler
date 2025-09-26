@@ -1,0 +1,195 @@
+syntax = "proto3";
+
+package mqc3_cloud.program.v1;
+
+import "mqc3_cloud/common/v1/function.proto";
+
+// Non-linear feedforward of graph representation.
+//
+// Constraints:
+// 1. 'from_operation' must be an index of measurement operation.
+// 2. 'from_operation' < 'to_operation'.
+// 3. The FF-target parameter is initialized to zero.
+// 4. A single measurement value can be used for up to L FFs.
+//
+// Hardware constraints:
+// The time-like distance between the source and target of an FF must be neither
+// too short nor too long. For example:
+// - If the target is a displacement, the distance must be at least 1 macronode.
+// - If the target changes the measurement basis, the distance must be at least 30 macronodes.
+// The maximum allowed distance is 201 macronodes.
+//
+// The number L of FFs and the allowed distances depend on the backend in which the program runs.
+// See the backend documentation for details.
+//
+// The indices used in this message are defined in GraphRepresentation, which contains the FFs.
+message GraphFF {
+  // The index of function.
+  uint32 function = 1;
+
+  // The index of FF source macronode.
+  uint32 from_macronode = 2;
+
+  // The index of FF target macronode.
+  uint32 to_macronode = 3;
+
+  // The parameter that specifies the measurement value to be used.
+  //
+  // Perform FF using the following measured value based on the value of `from_bd`:
+  // * `from_bd` = 0: `m_b`
+  // * `from_bd` = 1: `m_d`
+  uint32 from_bd = 4;
+
+  // The parameter index of FF target operation.
+  //
+  // When performing FF to a displacement, set the value of `to_parameter` to the following:
+  // * `to_parameter` = 4: x of displacement_k_minus_1
+  // * `to_parameter` = 5: p of displacement_k_minus_1
+  // * `to_parameter` = 6: x of displacement_k_minus_n
+  // * `to_parameter` = 7: p of displacement_k_minus_n
+  uint32 to_parameter = 5;
+}
+
+// Graph representation of continuous variable quantum computation.
+//
+// Overview of the graph representation:
+// <pre>
+// -             d        n_{N-1}     n_{2N-1}    n_{(M-1)*N-1}
+// -             v          v           v           v
+// - d       > n_{0}    > n_{N}     > n_{2N}    > n_{(M-1)*N}
+// - d       > n_{1}    > n_{N+1}   > n_{2N+1}  > n_{(M-1)*N+1}
+// - d       > ..       > ..        > ..        > ..
+// - d       > n_{N-1}  > n_{2N-1}  > ..        > n_{M*N-1}
+// -             v          v           v
+// </pre>
+//
+// Variables used in the table above:
+// <pre>
+// - `N` = `n_local_macronodes`
+// - `M` = `n_steps`
+// - `n` stands for `macronode`
+// - `d` stands for default mode
+// </pre>
+message GraphRepresentation {
+  // The number of local macronodes, i.e. macronodes per step.
+  // The total number of macronodes can be calculated as `n_local_macronodes` * `n_steps`.
+  uint32 n_local_macronodes = 1;
+
+  // The number of steps.
+  // The total number of macronodes can be calculated as `n_local_macronodes` * `n_steps`.
+  uint32 n_steps = 2;
+
+  // Operation performed in the quantum computation.
+  // #size <= `n_local_macronodes` * `n_steps`.
+  //
+  // When some GraphOperation uses multiple macronodes, the equality in the above equation does not hold.
+  repeated GraphOperation operations = 3;
+
+  // Setting for each non-linear feedforward.
+  repeated GraphFF nlffs = 4;
+
+  // Python functions used in the non-linear feedforwards.
+  repeated mqc3_cloud.common.v1.PythonFunction functions = 5;
+
+  // The name of graph representation.
+  string name = 100;
+}
+
+// Operation in the graph representation of continuous variable quantum computation.
+//
+// <pre>
+// OperationType                 size of nodes  size of parameters
+// OPERATION_TYPE_MEASUREMENT          1              1
+// OPERATION_TYPE_INITIALIZATION       1              1
+// OPERATION_TYPE_PHASE_ROTATION       1              1
+// OPERATION_TYPE_SHEAR_X_INVARIANT    1              1
+// OPERATION_TYPE_SHEAR_P_INVARIANT    1              1
+// OPERATION_TYPE_SQUEEZING            1              1
+// OPERATION_TYPE_SQUEEZING_45         1              1
+// OPERATION_TYPE_ARBITRARY_FIRST      1              3
+// OPERATION_TYPE_ARBITRARY_SECOND     1              3
+// OPERATION_TYPE_CONTROLLED_Z         1              1
+// OPERATION_TYPE_BEAM_SPLITTER        1              2
+// OPERATION_TYPE_TWO_MODE_SHEAR       1              2
+// OPERATION_TYPE_MANUAL               1              4
+// OPERATION_TYPE_WIRING               1              0
+// </pre>
+message GraphOperation {
+  // Type of `GraphOperation`.
+  enum OperationType {
+    OPERATION_TYPE_UNSPECIFIED = 0; /// Reserved field
+
+    OPERATION_TYPE_MEASUREMENT = 1; /// Homodyne measurement
+
+    OPERATION_TYPE_INITIALIZATION = 2; /// Initialization
+
+    OPERATION_TYPE_PHASE_ROTATION = 3; /// Phase rotation
+    OPERATION_TYPE_SHEAR_X_INVARIANT = 4; /// Shear (X-Invariant)
+    OPERATION_TYPE_SHEAR_P_INVARIANT = 5; /// Shear (P-Invariant)
+    OPERATION_TYPE_SQUEEZING = 6; /// Squeezing
+    OPERATION_TYPE_SQUEEZING_45 = 7; /// 45-degree Squeezing
+    OPERATION_TYPE_ARBITRARY_FIRST = 8; /// Arbitrary gaussian (first operation)
+    OPERATION_TYPE_ARBITRARY_SECOND = 14; /// Arbitrary gaussian (second operation)
+
+    OPERATION_TYPE_CONTROLLED_Z = 9; /// Cz
+    OPERATION_TYPE_BEAM_SPLITTER = 10; /// Beam splitter interaction
+    OPERATION_TYPE_TWO_MODE_SHEAR = 11; /// Two-mode Shear
+    OPERATION_TYPE_MANUAL = 12; /// Set four measurement angles of a macronode
+
+    OPERATION_TYPE_WIRING = 13; /// No operation, just for wiring
+  }
+
+  OperationType type = 1;
+
+  // Array of mode indices after initialization (lower (=k+1) mode index, right (=k+N) mode index)
+  // If you don’t want to assign an index for an initialized mode, use -1.
+  // The number of element is 2 for OPERATION_TYPE_INITIALIZATION, 0 otherwise.
+  repeated int32 initialized_modes = 2;
+
+  // The displacement.
+  message Displacement {
+    float x = 1;
+    float p = 2;
+  }
+
+  // Displacement applied to the input mode from the upper (=k-1) before the operation.
+  Displacement displacement_k_minus_1 = 3;
+
+  // Displacement applied to the input mode from the left (=k-N) before the operation.
+  Displacement displacement_k_minus_n = 4;
+
+  // The index of the macronode at which the operation is performed.
+  // See the table in the message documentation.
+  uint32 macronode = 5;
+
+  // If true, the mode coming from the left goes to the bottom, and the mode coming from the top goes to the right.
+  // If false, the mode coming from the left goes to the right and the mode coming from the top goes to the bottom.
+  bool swap = 6;
+
+  // Parameter values of the operation.
+  // The size is determined for each OperationType.
+  // See the table in the message documentation.
+  repeated float parameters = 7;
+
+  // Whether to readout the measured values in the macronodes for the operation.
+  bool readout = 8;
+}
+
+message GraphResult {
+  // The measured values in a macronode.
+  message MacronodeMeasuredValue {
+    uint32 index = 1;
+    float m_b = 2;
+    float m_d = 3;
+  }
+
+  // The measured values in a shot.
+  message ShotMeasuredValue {
+    // The measurement result of macronodes.
+    repeated MacronodeMeasuredValue measured_vals = 1;
+  }
+
+  uint32 n_local_macronodes = 1;
+
+  repeated ShotMeasuredValue measured_vals = 2;
+}

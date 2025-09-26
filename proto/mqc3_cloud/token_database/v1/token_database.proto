@@ -1,0 +1,170 @@
+// Proto for the token database service.
+
+syntax = "proto3";
+
+package mqc3_cloud.token_database.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+// The token database service.
+service TokenDatabaseService {
+  // Add a new token to the database.
+  rpc CreateToken(CreateTokenRequest) returns (CreateTokenResponse) {
+    option (google.api.http) = {
+      post: "/v1/token_database/create_token"
+      body: "*"
+    };
+  }
+
+  // Get the token information from the database.
+  rpc GetTokenInfo(GetTokenInfoRequest) returns (GetTokenInfoResponse) {
+    option (google.api.http) = {
+      post: "/v1/token_database/get_token_info",
+      body: "*"
+    };
+  }
+
+  // Delete a token and its user information from the database.
+  rpc DeleteToken(DeleteTokenRequest) returns (DeleteTokenResponse) {
+    option (google.api.http) = {
+      post: "/v1/token_database/delete_token"
+      body: "*"
+    };
+  }
+
+  // Update the expiration time of a token in the database.
+  rpc RenewToken(RenewTokenRequest) returns (RenewTokenResponse) {
+    option (google.api.http) = {
+      post: "/v1/token_database/update_token"
+      body: "*"
+    };
+  }
+
+  // Get the list of tokens in the database.
+  rpc GetTokenInfoList(google.protobuf.Empty) returns (GetTokenInfoListResponse) {
+    option (google.api.http) = {get: "/v1/token_database/get_token_info_list"};
+  }
+}
+
+// The status of a database operation.
+enum DatabaseOperationStatus {
+  // Unspecified status.
+  DATABASE_OPERATION_STATUS_UNSPECIFIED = 0;
+
+  // The operation was successful.
+  DATABASE_OPERATION_STATUS_OK = 1;
+
+  // The operation failed because the requested token was not found in the database.
+  DATABASE_OPERATION_STATUS_NOT_FOUND = 2;
+}
+
+// The request message for the CreateToken method.
+message CreateTokenRequest {
+  // The name of the new user.
+  string name = 1;
+
+  // The role assigned to the token.
+  string role = 2;
+
+  // The expiration timestamp of the token.
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+// The response message for the CreateToken method.
+message CreateTokenResponse {
+  // The status of the operation.
+  DatabaseOperationStatus status = 1;
+
+  // Details of the error if the operation failed.
+  string detail = 2;
+
+  // The token information of the newly created token.
+  TokenInfo token_info = 3;
+}
+
+message GetTokenInfoRequest {
+  // The token which is used to get the user information.
+  string token = 1;
+}
+
+// The response message for the GetTokenInfo method.
+message GetTokenInfoResponse {
+  // The status of the operation.
+  DatabaseOperationStatus status = 1;
+
+  // Details of the error if the operation failed.
+  string detail = 2;
+
+  // The information of the token.
+  TokenInfo token_info = 3;
+}
+
+// The request message for the DeleteToken method.
+message DeleteTokenRequest {
+  // The token which will be deleted.
+  string token = 1;
+}
+
+// The response message for the DeleteToken method.
+message DeleteTokenResponse {
+  // The status of the operation.
+  DatabaseOperationStatus status = 1;
+
+  // Details of the error if the operation failed.
+  string detail = 2;
+}
+
+// The request message for the RenewToken method.
+message RenewTokenRequest {
+  // The token which will be updated.
+  string token = 1;
+
+  // The role assigned to the token.
+  string role = 2;
+
+  // The new expiration time of the token.
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+// The response message for the RenewToken method.
+message RenewTokenResponse {
+  // The status of the operation.
+  DatabaseOperationStatus status = 1;
+
+  // Details of the error if the operation failed.
+  string detail = 2;
+
+  // The token information after the update.
+  TokenInfo token_info = 3;
+}
+
+message TokenInfo {
+  // The token of the user.
+  string token = 1;
+
+  // The name of the user the token is issued for.
+  string name = 2;
+
+  // The role assigned to the token
+  string role = 3;
+
+  // The creation timestamp of the token.
+  google.protobuf.Timestamp created_at = 4;
+
+  // The expiration timestamp of the token.
+  google.protobuf.Timestamp expires_at = 5;
+}
+
+// The response message for the GetTokenList method.
+message GetTokenInfoListResponse {
+  // The status of the operation.
+  DatabaseOperationStatus status = 1;
+
+  // Details of the error if the operation failed.
+  string detail = 2;
+
+  // The list of tokens in the database.
+  repeated TokenInfo token_list = 3;
+}

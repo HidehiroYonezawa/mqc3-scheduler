@@ -1,0 +1,182 @@
+// MQC3 Submission Service API
+//
+// This protocol buffer defines the client-facing API for submitting jobs to
+// the MQC3 Scheduler. It supports job creation, cancellation, status tracking,
+// result retrieval, and querying service availability.
+//
+// The service is intended for users submitting jobs to backends, and
+// complements the ExecutionService used by backends.
+//
+// This file is part of the MQC3 Scheduler Protocol Suite.
+// See also: job.proto, execution.proto
+
+syntax = "proto3";
+
+package mqc3_cloud.scheduler.v1;
+
+import "mqc3_cloud/common/v1/error_detail.proto";
+import "mqc3_cloud/scheduler/v1/job.proto";
+
+// SubmissionService provides RPCs for managing job submissions.
+// [Backends] BOTH (HARDWARE AND SIMULATOR)
+// [Behavior Differences]
+//   - Unless otherwise noted, behavior is identical for HARDWARE and SIMULATOR.
+//   - Backend-specific semantics are carried by JobExecutionSettings.
+service SubmissionService {
+  // Submits a job for execution on a backend.
+  // [Behavior Differences]
+  //   - NONE at RPC surface. Backend-specific validation occurs on Job.settings.
+  rpc SubmitJob(SubmitJobRequest) returns (SubmitJobResponse);
+
+  // Cancels a previously submitted job if it has not yet completed.
+  rpc CancelJob(CancelJobRequest) returns (CancelJobResponse);
+
+  // Retrieves the current execution status of a submitted job (e.g., "RUNNING", "COMPLETED", "FAILED").
+  rpc GetJobStatus(GetJobStatusRequest) returns (GetJobStatusResponse);
+
+  // Retrieves the result of a completed job.
+  rpc GetJobResult(GetJobResultRequest) returns (GetJobResultResponse);
+
+  // Retrieves the operational status of the submission service itself (e.g., available, under maintenance).
+  rpc GetServiceStatus(GetServiceStatusRequest) returns (GetServiceStatusResponse);
+}
+
+///////////////////////////////////
+// Common messages
+///////////////////////////////////
+
+// ServiceStatus represents the current availability of the submission service.
+enum ServiceStatus {
+  // Unspecified status. Indicates unknown or uninitialized state.
+  SERVICE_STATUS_UNSPECIFIED = 0;
+
+  // Service is operational and accepting requests.
+  SERVICE_STATUS_AVAILABLE = 1;
+
+  // Service is temporarily unavailable.
+  SERVICE_STATUS_UNAVAILABLE = 2;
+
+  // Service is under maintenance and may be partially or fully disabled.
+  SERVICE_STATUS_MAINTENANCE = 3;
+}
+
+///////////////////////////////////
+// RPC request/response messages
+///////////////////////////////////
+
+// SubmitJobRequest defines a request to submit a job for execution.
+message SubmitJobRequest {
+  // Authentication token for user verification.
+  // [Notes] In production, prefer gRPC metadata/credentials over an in-message token.
+  string token = 1;
+
+  // The job definition including program and execution settings.
+  // [Backends] BOTH
+  // [Notes] Backend-specific validation happens on Job.settings.
+  Job job = 2;
+
+  // Optional job-level management options (e.g., persistence).
+  JobManagementOptions options = 3;
+
+  // SDK version used by the client.
+  string sdk_version = 4;
+}
+
+// SubmitJobResponse returns the outcome of a job submission.
+message SubmitJobResponse {
+  // Detailed error information if the submission fails.
+  // Empty if the operation succeeds.
+  mqc3_cloud.common.v1.ErrorDetail error = 1;
+
+  // Unique identifier assigned to the submitted job.
+  // This field is set only if the job was accepted.
+  string job_id = 10;
+}
+
+// CancelJobRequest defines a request to cancel a submitted job.
+message CancelJobRequest {
+  // Authentication token for user verification.
+  string token = 1;
+
+  // The identifier of the job to cancel.
+  string job_id = 2;
+}
+
+// CancelJobResponse contains the outcome of a cancellation request.
+message CancelJobResponse {
+  // Detailed error information if the cancellation fails.
+  mqc3_cloud.common.v1.ErrorDetail error = 1;
+}
+
+// GetJobStatusRequest queries the current status of a submitted job.
+message GetJobStatusRequest {
+  // Authentication token for user verification.
+  string token = 1;
+
+  // The identifier of the job whose status is requested.
+  string job_id = 2;
+}
+
+// GetJobStatusResponse contains status and metadata about the job.
+message GetJobStatusResponse {
+  // Detailed error information if the request fails.
+  mqc3_cloud.common.v1.ErrorDetail error = 1;
+
+  // The current lifecycle status of the job.
+  JobStatus status = 10;
+
+  // Optional human-readable message describing the job status.
+  string status_detail = 11;
+
+  // Metadata about the execution environment and timestamps.
+  JobExecutionDetails execution_details = 12;
+}
+
+// GetJobResultRequest queries the final result of a completed job.
+message GetJobResultRequest {
+  // Authentication token for user verification.
+  string token = 1;
+
+  // The identifier of the job whose result is requested.
+  string job_id = 2;
+}
+
+// GetJobResultResponse returns the result data or failure status of the job.
+message GetJobResultResponse {
+  // Detailed error information if the request fails.
+  mqc3_cloud.common.v1.ErrorDetail error = 1;
+
+  // Final status of the job. Should be COMPLETED to retrieve result.
+  JobStatus status = 10;
+
+  // Optional human-readable message describing the job status.
+  string status_detail = 11;
+
+  // Metadata about the execution environment and timestamps.
+  JobExecutionDetails execution_details = 12;
+
+  // Download information for the completed job result.
+  JobResult result = 13;
+}
+
+// GetServiceStatusRequest queries the current availability of the submission service.
+message GetServiceStatusRequest {
+  // Authentication token for user verification.
+  string token = 1;
+
+  // The identifier of the target backend to check the status for.
+  string backend = 2;
+}
+
+// GetServiceStatusResponse reports the availability of the submission service.
+message GetServiceStatusResponse {
+  // Detailed error information if the request fails.
+  mqc3_cloud.common.v1.ErrorDetail error = 1;
+
+  // Current service availability state.
+  ServiceStatus status = 10;
+
+  // Optional human-readable description of the current service status.
+  // May include additional information such as maintenance schedules or outage reasons.
+  string description = 11;
+}

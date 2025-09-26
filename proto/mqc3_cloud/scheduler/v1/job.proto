@@ -1,0 +1,225 @@
+// MQC3 Job Definition Schema
+//
+// This protocol buffer defines core data structures related to jobs within
+// the MQC3 Scheduler system. It includes job submission content, execution
+// metadata, status enums, and result retrieval mechanisms.
+//
+// This file is shared by both the SubmissionService and ExecutionService,
+// and serves as the foundation for all job-related operations.
+//
+// This file is part of the MQC3 Scheduler Protocol Suite.
+// See also: submission.proto, execution.proto
+
+syntax = "proto3";
+
+package mqc3_cloud.scheduler.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "mqc3_cloud/program/v1/quantum_program.proto";
+
+// Job represents a unit of execution on a backend.
+message Job {
+  // The quantum program to execute.
+  mqc3_cloud.program.v1.QuantumProgram program = 1;
+
+  // Execution parameters including backend configuration and run options.
+  JobExecutionSettings settings = 2;
+}
+
+// JobManagementOptions contains metadata and control flags
+// related to job handling, but not execution behavior itself.
+message JobManagementOptions {
+  // Whether to save the job and its result for later access.
+  bool save_job = 1;
+}
+
+// Job execution timestamps for the Optical Quantum Computer system.
+// Records the key lifecycle timestamps of a job request from submission to completion.
+message JobTimestamps {
+  // The timestamp when the job was submitted by the user (received by AWS endpoint).
+  google.protobuf.Timestamp submitted_at = 1;
+
+  // The timestamp when the job was queued for processing.
+  google.protobuf.Timestamp queued_at = 2;
+
+  // The timestamp when the job was dequeued for compilation.
+  google.protobuf.Timestamp dequeued_at = 3;
+
+  // The timestamp when compilation started.
+  google.protobuf.Timestamp compile_started_at = 4;
+
+  // The timestamp when compilation finished.
+  google.protobuf.Timestamp compile_finished_at = 5;
+
+  // The timestamp when execution started on the optical quantum computer or simulator.
+  google.protobuf.Timestamp execution_started_at = 6;
+
+  // The timestamp when execution finished on the optical quantum computer or simulator.
+  google.protobuf.Timestamp execution_finished_at = 7;
+
+  // The timestamp when the job reached a final state (either succeeded, failed, or canceled).
+  google.protobuf.Timestamp finished_at = 8;
+}
+
+// [Backends] SIMULATOR
+// Policy for saving states after simulation.
+// [Population Rules]
+//   - Populated in JobExecutionSettings for SIMULATOR backend.
+// [Behavior on Other Backend]
+//   - HARDWARE: MUST ignore if set.
+// [Notes]
+//   - Affects population of QuantumProgramResult.circuit_state.
+enum JobStateSavePolicy {
+  // Unspecified state save policy.
+  JOB_STATE_SAVE_POLICY_UNSPECIFIED = 0;
+
+  // Do not save any states.
+  JOB_STATE_SAVE_POLICY_NONE = 1;
+
+  // Save only the state of the first shot.
+  JOB_STATE_SAVE_POLICY_FIRST_ONLY = 2;
+
+  // Save all states.
+  JOB_STATE_SAVE_POLICY_ALL = 3;
+}
+
+// JobExecutionSettings contains the settings for job execution.
+message JobExecutionSettings {
+  // [Backends] BOTH
+  // Backend identifier on which to execute the program.
+  string backend = 1;
+
+  // [Backends] BOTH
+  // Number of measurement shots to perform.
+  int32 n_shots = 2;
+
+  // [Backends] BOTH
+  // The timeout for the job measured from the start of compilation to the end of execution.
+  google.protobuf.Duration timeout = 3;
+
+  // [Backends] SIMULATOR
+  // [Population Rules]
+  //   - Respected only for SIMULATOR backend.
+  // [Behavior on Other Backend]
+  //   - HARDWARE: MUST ignore if set.
+  // Determines the policy for saving simulator states during execution.
+  JobStateSavePolicy state_save_policy = 4;
+
+  // [Backends] SIMULATOR
+  // [Population Rules]
+  //   - Respected only for SIMULATOR backend.
+  // [Behavior on Other Backend]
+  //   - HARDWARE: MUST ignore if set.
+  // Squeezing level of the resource state.
+  // Positive values indicate squeezing in the x quadrature, negative values in the p quadrature.
+  // Higher absolute values indicate stronger squeezing and more nonclassical resource states.
+  float resource_squeezing_level = 5;
+
+  // [Backends] BOTH
+  // Role of the requesting user. Used for access control or logging.
+  // Acceptable values: 'admin', 'developer', 'guest'.
+  string role = 6;
+}
+
+// JobExecutionVersion contains version information for backend components.
+message JobExecutionVersion {
+  // [Backends] BOTH
+  string scheduler_version = 1;
+
+  // [Backends] HARDWARE
+  string physical_lab_version = 2;
+
+  // [Backends] SIMULATOR
+  string simulator_version = 3;
+}
+
+// JobExecutionDetails contains metadata about a job's execution
+// such as backend version and execution timestamps.
+message JobExecutionDetails {
+  // The version of the backend system used for execution.
+  JobExecutionVersion version = 1;
+
+  // Execution time details for operations.
+  JobTimestamps timestamps = 2;
+}
+
+// JobStatus represents the lifecycle status of a job.
+//
+// ## State Transition Diagram
+//
+// <pre>
+// -                      +--------------------+
+// -                      |       QUEUED       |
+// -                      +--------------------+
+// -                        |               |
+// -                        v               v
+// -                   +---------+    +-----------+
+// -                   | RUNNING |    | CANCELLED |
+// -                   +---------+    +-----------+
+// -                    |   |   |
+// -            +-------+   |   +----------+
+// -            |           |              |
+// -            v           v              v
+// -     +-----------+  +--------+    +---------+
+// -     | COMPLETED |  | FAILED |    | TIMEOUT |
+// -     +-----------+  +--------+    +---------+
+// </pre>
+//
+// Legend:
+// - QUEUED jobs may transition to RUNNING or be CANCELLED.
+// - RUNNING jobs may transition to COMPLETE, FAIL, or TIMEOUT.
+// - CANCELLED, COMPLETED, FAILED, and TIMEOUT are terminal states.
+enum JobStatus {
+  // Default unspecified status. Indicates an invalid or uninitialized state.
+  JOB_STATUS_UNSPECIFIED = 0;
+
+  // The job has been accepted and is queued for execution.
+  JOB_STATUS_QUEUED = 1;
+
+  // The job is running on the backend.
+  JOB_STATUS_RUNNING = 2;
+
+  // The job completed successfully.
+  JOB_STATUS_COMPLETED = 3;
+
+  // The job failed due to a validation or runtime error.
+  // This may occur either before or after the job enters the queue.
+  JOB_STATUS_FAILED = 4;
+
+  // The job was cancelled before completion.
+  JOB_STATUS_CANCELLED = 5;
+
+  // The job exceeded the allowed execution time and was terminated.
+  JOB_STATUS_TIMEOUT = 6;
+}
+
+// Information required to upload job results (server -> device).
+message JobResultUploadTarget {
+  // Pre-signed URL or storage endpoint.
+  string upload_url = 1;
+
+  // Expiration time for the pre-signed URL.
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+// What was uploaded (device -> server).
+message JobUploadedResult {
+  // Size before compression/encoding (bytes).
+  uint64 raw_size_bytes = 1;
+
+  // Size actually uploaded after compression/encoding (bytes).
+  uint64 encoded_size_bytes = 2;
+}
+
+// JobResult contains information on how to retrieve the result of a completed job.
+message JobResult {
+  // URL to download the serialized quantum program result.
+  //
+  // The content is a binary-encoded `QuantumProgramResult` message.
+  // Clients must deserialize it using the corresponding schema definition.
+  string result_url = 1;
+
+  // Expiration time for the result URL.
+  google.protobuf.Timestamp expires_at = 2;
+}

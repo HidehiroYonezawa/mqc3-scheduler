@@ -1,0 +1,13 @@
+// Proto for a error detail.
+
+syntax = "proto3";
+
+package mqc3_cloud.common.v1;
+
+message ErrorDetail {
+  // The error code.
+  string code = 1;
+
+  // The error description.
+  string description = 2;
+}

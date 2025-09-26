@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package mqc3_cloud.program.v1;
+
+import "mqc3_cloud/program/v1/circuit.proto";
+import "mqc3_cloud/program/v1/graph.proto";
+import "mqc3_cloud/program/v1/machinery.proto";
+
+// Quantum program representation formats.
+enum RepresentationFormat {
+  // Unspecified format.
+  REPRESENTATION_FORMAT_UNSPECIFIED = 0;
+
+  // High-level circuit representation.
+  REPRESENTATION_FORMAT_CIRCUIT = 1;
+
+  // Intermediate graph representation.
+  REPRESENTATION_FORMAT_GRAPH = 2;
+
+  // Low-level machinery representation.
+  REPRESENTATION_FORMAT_MACHINERY = 3;
+}
+
+// Container for a quantum program.
+message QuantumProgram {
+  // The format of the program representation.
+  RepresentationFormat format = 1;
+
+  // The actual data of the QuantumProgram.
+  // This payload is one of the three representations.
+  oneof payload {
+    // Used when the format is REPRESENTATION_FORMAT_CIRCUIT.
+    mqc3_cloud.program.v1.CircuitRepresentation circuit = 2;
+
+    // Used when the format is REPRESENTATION_FORMAT_GRAPH.
+    mqc3_cloud.program.v1.GraphRepresentation graph = 3;
+
+    // Used when the format is REPRESENTATION_FORMAT_MACHINERY.
+    mqc3_cloud.program.v1.MachineryRepresentation machinery = 4;
+  }
+}
+
+// Container for a quantum program result.
+message QuantumProgramResult {
+  // [Backends] BOTH
+  // [Population Rules]
+  //   - Populated when QuantumProgram.format == REPRESENTATION_FORMAT_CIRCUIT.
+  // The result of executing the circuit-level representation.
+  mqc3_cloud.program.v1.CircuitResult circuit_result = 1;
+
+  // [Backends] BOTH
+  // [Population Rules]
+  //   - HARDWARE  : Populated when QuantumProgram.format is in
+  //                 { REPRESENTATION_FORMAT_CIRCUIT, REPRESENTATION_FORMAT_GRAPH }.
+  //   - SIMULATOR : Populated when QuantumProgram.format == REPRESENTATION_FORMAT_GRAPH.
+  // The result of executing the graph-level representation.
+  mqc3_cloud.program.v1.GraphResult graph_result = 2;
+
+  // [Backends] BOTH
+  // [Population Rules]
+  //   - HARDWARE  : Populated when QuantumProgram.format is in
+  //                 { REPRESENTATION_FORMAT_CIRCUIT, REPRESENTATION_FORMAT_GRAPH, REPRESENTATION_FORMAT_MACHINERY }.
+  //   - SIMULATOR : Populated when QuantumProgram.format == REPRESENTATION_FORMAT_MACHINERY.
+  // The result of executing the machinery-level representation.
+  mqc3_cloud.program.v1.MachineryResult machinery_result = 3;
+
+  // [Backends] HARDWARE
+  // [Population Rules]
+  //   - Populated when QuantumProgram.format is in
+  //                 { REPRESENTATION_FORMAT_CIRCUIT, REPRESENTATION_FORMAT_GRAPH }.
+  // The graph representation produced by compilation.
+  mqc3_cloud.program.v1.GraphRepresentation compiled_graph = 4;
+
+  // [Backends] HARDWARE
+  // [Population Rules]
+  //   - Populated when QuantumProgram.format is in
+  //                 { REPRESENTATION_FORMAT_CIRCUIT, REPRESENTATION_FORMAT_GRAPH, REPRESENTATION_FORMAT_MACHINERY }.
+  // The machinery representation produced by compilation.
+  mqc3_cloud.program.v1.MachineryRepresentation compiled_machinery = 5;
+
+  // [Backends] SIMULATOR
+  // [Population Rules]
+  //   - Populated when QuantumProgram.format == REPRESENTATION_FORMAT_CIRCUIT
+  //     AND JobExecutionSettings.state_save_policy != JOB_STATE_SAVE_POLICY_NONE.
+  // [Notes]
+  //   - Size depends on state_save_policy and n_shots.
+  // The saved quantum states per shot, as determined by the configured save policy.
+  repeated mqc3_cloud.program.v1.BosonicState circuit_state = 6;
+}

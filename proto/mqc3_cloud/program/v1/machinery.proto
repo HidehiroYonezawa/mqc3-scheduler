@@ -1,0 +1,158 @@
+// Proto for machinery representation.
+
+syntax = "proto3";
+
+package mqc3_cloud.program.v1;
+
+import "mqc3_cloud/common/v1/function.proto";
+
+// Generation method of feedforward coefficients.
+enum FeedForwardCoefficientGenerationMethod {
+  // Unspecified.
+  FEED_FORWARD_COEFFICIENT_GENERATION_METHOD_UNSPECIFIED = 0;
+
+  // Generate the feedforward coefficients by zero-filling.
+  FEED_FORWARD_COEFFICIENT_GENERATION_METHOD_ZERO_FILLED = 1;
+
+  // Generate the feedforward coefficients from homodyne angles.
+  FEED_FORWARD_COEFFICIENT_GENERATION_METHOD_FROM_HOMODYNE_ANGLES = 2;
+}
+
+// Non-linear feedforward of machinery representation.
+//
+// Constraints:
+// 1. 'from_operation' < 'to_operation'.
+// 2. The FF-target parameter is initialized to zero.
+// 3. A single measurement value can be used for up to L FFs.
+//
+// Hardware constraints:
+// The time-like distance between the source and target of an FF must be neither
+// too short nor too long. For example:
+// - If the target is a displacement, the distance must be at least 1 macronode.
+// - If the target changes the measurement basis, the distance must be at least 30 macronodes.
+// The maximum allowed distance is 201 macronodes.
+//
+// The number L of FFs and the allowed distances depend on the backend in which the program runs.
+// See the backend documentation for details.
+//
+// The indices used in this message are defined in MachineryRepresentation, which contains the FFs.
+message MachineryFF {
+  // The index of the function.
+  uint32 function = 1;
+
+  // The index of FF source macronode.
+  uint32 from_macronode = 2;
+
+  // The parameter that specifies the measurement value to be used.
+  //
+  // Perform FF using the following measured value based on the value of 'from_abcd':
+  // * 0: M_a
+  // * 1: M_b
+  // * 2: M_c
+  // * 3: M_d
+  uint32 from_abcd = 3;
+
+  // The index of FF target macronode.
+  uint32 to_macronode = 4;
+
+  // The index of parameter of FF target macronode.
+  //
+  // Perform FF to the following parameter based on the value of 'to_parameter':
+  // * 0: theta_a
+  // * 1: theta_b
+  // * 2: theta_c
+  // * 3: theta_d
+  // * 4: X of displacement_k_minus_1
+  // * 5: P of displacement_k_minus_1
+  // * 6: X of displacement_k_minus_n
+  // * 7: P of displacement_k_minus_n
+  uint32 to_parameter = 5;
+}
+
+message MachineryRepresentation {
+  // The number of macronodes per step, referred to as local macronodes.
+  uint32 n_local_macronodes = 1;
+
+  // The number of steps.
+  uint32 n_steps = 2;
+
+  // The homodyne angles in a macronode.
+  // Angles must satisfy (modulo pi):
+  // - All equal: theta_a == theta_b == theta_c == theta_d
+  //   OR
+  // - Paired: (theta_a != theta_b) AND (theta_c != theta_d)
+  message MacronodeAngle {
+    float theta_a = 1;
+    float theta_b = 2;
+    float theta_c = 3;
+    float theta_d = 4;
+  }
+
+  // Homodyne angles for the entire program.
+  // - Size: n_steps × n_local_macronodes
+  // - Indexed starting from 0.
+  repeated MacronodeAngle homodyne_angles = 3;
+
+  // For each index k, specifies how to generate the FF coefficients
+  // for the (k+1)-th macronode.
+  // - Size: n_steps × n_local_macronodes
+  repeated FeedForwardCoefficientGenerationMethod generating_method_for_ff_coeff_k_plus_1 = 4;
+
+  // For each index k, specifies how to generate the FF coefficients
+  // for the (k+n_local_macronodes)-th macronode.
+  // - Size: n_steps × n_local_macronodes
+  repeated FeedForwardCoefficientGenerationMethod generating_method_for_ff_coeff_k_plus_n = 5;
+
+  // The displacement complex.
+  message DisplacementComplex {
+    float x = 1;
+    float p = 2;
+  }
+
+  // For each index k, defines the displacement applied
+  // from the (k−1)-th macronode to the input of the k-th macronode.
+  // - Size: n_steps × n_local_macronodes
+  repeated DisplacementComplex displacements_k_minus_1 = 6;
+
+  // For each index k, defines the displacement applied
+  // from the (k−n_local_macronodes)-th macronode to the input of the k-th macronode.
+  // - Size: n_steps × n_local_macronodes
+  repeated DisplacementComplex displacements_k_minus_n = 7;
+
+  // The indices of macronodes to be read out.
+  repeated uint32 readout_macronodes_indices = 8;
+
+  // Setting for each non-linear feedforward.
+  repeated MachineryFF nlffs = 9;
+
+  // The python functions used in the non-linear feedforwards.
+  repeated mqc3_cloud.common.v1.PythonFunction functions = 10;
+
+  // Name of the representation.
+  string name = 100;
+}
+
+// Measurement results for a machinery representation.
+message MachineryResult {
+  // Measured values for one macronode.
+  message MacronodeMeasuredValue {
+    float m_a = 1;
+    float m_b = 2;
+    float m_c = 3;
+    float m_d = 4;
+    uint32 index = 5;
+  }
+
+  // Measured values for one shot.
+  message ShotMeasuredValue {
+    // Per-shot measurements for the macronodes selected in
+    // MachineryRepresentation.readout_macronodes_indices, in the same order.
+    // The number of elements equals the length of readout_macronodes_indices.
+    repeated MacronodeMeasuredValue measured_vals = 1;
+  }
+
+  // Shot-by-shot measurement results.
+  // One element per shot. Each element contains the per-macronode values
+  // for the readout set (see ShotMeasuredValue.measured_vals).
+  repeated ShotMeasuredValue measured_vals = 1;
+}

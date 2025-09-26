@@ -1,0 +1,11 @@
+// Proto for the arbitrary function.
+
+syntax = "proto3";
+
+package mqc3_cloud.common.v1;
+
+// Functions defined by python code.
+message PythonFunction {
+  // The code list of function.
+  repeated string code = 2;
+}

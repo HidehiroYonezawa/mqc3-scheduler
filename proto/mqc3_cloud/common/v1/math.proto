@@ -1,0 +1,13 @@
+// Proto for mathematical objects.
+
+syntax = "proto3";
+
+package mqc3_cloud.common.v1;
+
+// Complex number.
+message Complex {
+  // Real part of the complex number.
+  float real = 1;
+  // Imaginary part of the complex number.
+  float imag = 2;
+}

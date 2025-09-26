@@ -1,0 +1,139 @@
+// MQC3 Execution Service API
+//
+// This protocol buffer defines the gRPC interface used by quantum computer
+// controllers ("physical_labs") to interact with the MQC3 cloud job scheduler.
+// It provides mechanisms for assigning queued jobs, reporting execution results,
+// and requesting refreshed upload URLs when needed.
+//
+// This file is part of the MQC3 Scheduler Protocol Suite.
+// See also: job.proto, submission.proto
+
+syntax = "proto3";
+
+package mqc3_cloud.scheduler.v1;
+
+import "mqc3_cloud/common/v1/error_detail.proto";
+import "mqc3_cloud/scheduler/v1/job.proto";
+
+// ExecutionService defines the interface for a quantum computer to interact with
+// the scheduling system. It enables job assignment, result reporting, and
+// upload URL management. Intended for use by physical_lab (quantum computer controller).
+service ExecutionService {
+  // Assigns the next available job in the execution queue to the requesting backend.
+  //
+  // This RPC ensures that the assigned job is exclusively reserved for the requesting
+  // controller and will not be assigned to any other backend. If no job is currently
+  // queued, the response will contain an empty job_id.
+  //
+  // Use this method to periodically check for assignable jobs.
+  rpc AssignNextJob(AssignNextJobRequest) returns (AssignNextJobResponse);
+
+  // Reports the final execution result and metadata of a previously assigned job.
+  // Includes timestamps, backend identification, and uploaded result receipt/metrics.
+  rpc ReportExecutionResult(ReportExecutionResultRequest) returns (ReportExecutionResultResponse);
+
+  // Requests a new upload URL for a previously assigned job.
+  // This is typically used when the original URL has expired.
+  rpc RefreshUploadUrl(RefreshUploadUrlRequest) returns (RefreshUploadUrlResponse);
+}
+
+///////////////////////////////////
+// Common messages
+///////////////////////////////////
+
+// Metadata describing the execution environment.
+message ExecutionVersion {
+  // Identifier of the quantum computer hardware used.
+  string quantum_computer = 1;
+
+  // Identifier of the physical_lab (quantum computer controller) where execution occurred.
+  string physical_lab = 2;
+
+  // Identifier of the simulator.
+  string simulator = 3;
+}
+
+// Indicates the status of an execution job.
+enum ExecutionStatus {
+  // Execution status is unspecified or unknown.
+  EXECUTION_STATUS_UNSPECIFIED = 0;
+
+  // The job was executed successfully.
+  EXECUTION_STATUS_SUCCESS = 1;
+
+  // The job execution failed.
+  EXECUTION_STATUS_FAILURE = 2;
+
+  // The job did not complete within the allotted timeout duration.
+  EXECUTION_STATUS_TIMEOUT = 3;
+}
+
+///////////////////////////////////
+// RPC request/response messages
+///////////////////////////////////
+
+// Request to assign the next available job to a specific backend.
+message AssignNextJobRequest {
+  // Identifier of the backend requesting a job from the queue.
+  string backend = 1;
+}
+
+// Response containing an assigned job or indicating that the queue is empty.
+message AssignNextJobResponse {
+  // Error details, if the request failed.
+  mqc3_cloud.common.v1.ErrorDetail error = 1;
+
+  // Unique identifier of the job assigned. Empty if no job is currently queued.
+  string job_id = 10;
+
+  // Full job definition including program and settings.
+  Job job = 11;
+
+  // Upload target for execution result.
+  JobResultUploadTarget upload_target = 12;
+}
+
+// Request to report the outcome of a job execution.
+message ReportExecutionResultRequest {
+  // Identifier of the job that was executed.
+  string job_id = 1;
+
+  // Final status of the job.
+  ExecutionStatus status = 2;
+
+  // Optional error details if execution failed or timed out.
+  mqc3_cloud.common.v1.ErrorDetail error = 3;
+
+  // Metadata about the uploaded result.
+  JobUploadedResult uploaded_result = 4;
+
+  // Execution lifecycle timestamps.
+  JobTimestamps timestamps = 5;
+
+  // Name of the backend that performed the execution.
+  string actual_backend = 6;
+
+  // Versioning metadata of the execution environment.
+  ExecutionVersion version = 7;
+}
+
+// Response acknowledging the execution result report.
+message ReportExecutionResultResponse {
+  // Error details, if result registration failed.
+  mqc3_cloud.common.v1.ErrorDetail error = 1;
+}
+
+// Request to refresh an expired or invalid upload URL for a given job.
+message RefreshUploadUrlRequest {
+  // Identifier of the job requiring a new upload URL.
+  string job_id = 1;
+}
+
+// Response containing a new upload URL and its expiration time.
+message RefreshUploadUrlResponse {
+  // Error details if the URL refresh could not be fulfilled.
+  mqc3_cloud.common.v1.ErrorDetail error = 1;
+
+  // Refreshed upload target and expiration.
+  JobResultUploadTarget upload_target = 10;
+}

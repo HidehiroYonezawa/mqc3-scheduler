@@ -1,0 +1,189 @@
+syntax = "proto3";
+
+package mqc3_cloud.program.v1;
+
+import "mqc3_cloud/common/v1/function.proto";
+import "mqc3_cloud/common/v1/math.proto";
+
+// Non-linear feedforward of circuit representation.
+//
+// Constraints:
+// 1. 'from_operation' must be an index of measurement operation.
+// 2. 'from_operation' < 'to_operation'.
+// 3. The FF-target parameter is initialized to zero.
+// 4. A single measurement value can be used for up to L FFs.
+//
+// The number of the FFs L depends on the backend in which the program is executed.
+// Refer to the documentation for the values.
+//
+// The indices used in this message are defined in CircuitRepresentation, which contains the FFs.
+message CircuitFF {
+  // The index of function.
+  uint32 function = 1;
+
+  // The index of FF source operation.
+  uint32 from_operation = 2;
+
+  // The index of FF target operation.
+  uint32 to_operation = 3;
+
+  // The parameter index of FF target operation.
+  uint32 to_parameter = 4;
+}
+
+// Circuit representation of continuous variable quantum computation.
+message CircuitRepresentation {
+  // The number of modes.
+  uint32 n_modes = 1;
+
+  // The initial quantum states of each mode.
+  //
+  // - Length must equal `n_modes`.
+  // - Each entry represents the initial state of a single mode.
+  // - If the state is a `BosonicState`, it must be simulation-only:
+  //     - Each Gaussian state inside must be single-mode.
+  // - If targeting a real QPU, only `SqueezedState` is allowed.
+  repeated InitialState initial_states = 2;
+
+  // The sequence of operations performed in the quantum computation.
+  repeated CircuitOperation operations = 3;
+
+  // Setting for each non-linear feedforward.
+  repeated CircuitFF nlffs = 4;
+
+  // The python functions used in the non-linear feedforwards.
+  repeated mqc3_cloud.common.v1.PythonFunction functions = 5;
+
+  // The name of circuit representation.
+  string name = 100;
+}
+
+// The Gaussian state of a bosonic mode.
+// Represented by a phase-space mean vector and covariance matrix.
+message GaussianState {
+  // Mean vector in phase space. Size is 2 x N.
+  // The values are ordered as follows:
+  // - The x-means of modes 0, 1, ..., N-1.
+  // - The p-means of modes 0, 1, ..., N-1.
+  // where N is the number of modes.
+  repeated mqc3_cloud.common.v1.Complex mean = 1;
+
+  // Covariance matrix in phase space. Size is 4 x N^2.
+  // Must be symmetric and positive definite.
+  repeated float cov = 2;
+}
+
+// The bosonic state represented as a superposition of Gaussian states.
+// Used for simulation purposes only.
+// - The number of modes is the same for all Gaussian states.
+// - The sum of 'coeffs' must be 1.
+message BosonicState {
+  // Gaussian states for each peak in the superposition.
+  repeated GaussianState gaussian_states = 1;
+
+  // Complex coefficients for the Gaussian states.
+  repeated mqc3_cloud.common.v1.Complex coeffs = 2;
+}
+
+// A squeezed state for hardware execution with a fixed squeezing level.
+// Only the squeezing angle 'theta' is user-controllable due to hardware constraints.
+message HardwareConstrainedSqueezedState {
+  // Squeezing angle 'theta' [radians].
+  // Determines the squeezing direction in phase space.
+  float theta = 1;
+}
+
+// Represents the initial quantum state for a single mode.
+//
+// - `HardwareConstrainedSqueezedState` is used when targeting real QPUs
+//   where the squeezing level is fixed by hardware and only the angle can be set.
+// - `BosonicState` is used only in simulation, allowing arbitrary
+//   superpositions of single-mode Gaussian states.
+message InitialState {
+  oneof state_type {
+    // A squeezed state with fixed squeezing level for hardware execution.
+    HardwareConstrainedSqueezedState squeezed = 1;
+
+    // A superposition of Gaussian states for simulation.
+    BosonicState bosonic = 2;
+  }
+}
+
+// Visual metadata used for GUI-based circuit visualization.
+// This information is purely for display purposes and does not affect circuit logic.
+message GuiMetadataCircuitOperation {
+  // Represents the horizontal position (x-axis) in the visual editor.
+  uint32 slot = 1;
+}
+
+// Operation in the circuit representation of continuous variable quantum computation.
+//
+// <pre>
+// OperationType                 size of modes  size of parameters
+// OPERATION_TYPE_MEASUREMENT          1              1
+// OPERATION_TYPE_DISPLACEMENT         1              2
+// OPERATION_TYPE_PHASE_ROTATION       1              1
+// OPERATION_TYPE_SHEAR_X_INVARIANT    1              1
+// OPERATION_TYPE_SHEAR_P_INVARIANT    1              1
+// OPERATION_TYPE_SQUEEZING            1              1
+// OPERATION_TYPE_SQUEEZING_45         1              1
+// OPERATION_TYPE_ARBITRARY            1              3
+// OPERATION_TYPE_CONTROLLED_Z         2              1
+// OPERATION_TYPE_BEAM_SPLITTER        2              2
+// OPERATION_TYPE_TWO_MODE_SHEAR       2              2
+// OPERATION_TYPE_MANUAL               2              4
+// </pre>
+message CircuitOperation {
+  enum OperationType {
+    OPERATION_TYPE_UNSPECIFIED = 0; /// Reserved field
+
+    OPERATION_TYPE_MEASUREMENT = 1; /// Homodyne measurement
+
+    OPERATION_TYPE_DISPLACEMENT = 2; /// Displacement
+
+    OPERATION_TYPE_PHASE_ROTATION = 3; /// Phase rotation
+    OPERATION_TYPE_SHEAR_X_INVARIANT = 4; /// Shear (X-Invariant)
+    OPERATION_TYPE_SHEAR_P_INVARIANT = 5; /// Shear (P-Invariant)
+    OPERATION_TYPE_SQUEEZING = 6; /// Squeezing
+    OPERATION_TYPE_SQUEEZING_45 = 7; /// 45-degree Squeezing
+    OPERATION_TYPE_ARBITRARY = 8; /// Arbitrary gaussian
+
+    OPERATION_TYPE_CONTROLLED_Z = 9; /// Cz
+    OPERATION_TYPE_BEAM_SPLITTER = 10; /// Beam splitter interaction
+    OPERATION_TYPE_TWO_MODE_SHEAR = 11; /// Two-mode Shear
+    OPERATION_TYPE_MANUAL = 12; /// Set four measurement angles of a macronode
+  }
+
+  // Type of operation
+  OperationType type = 1;
+
+  // Indices of the operated modes.
+  repeated uint32 modes = 2;
+
+  // Parameter values of the operation.
+  repeated float parameters = 3;
+
+  // Optional metadata used only for GUI display and visualization.
+  GuiMetadataCircuitOperation gui_metadata = 100;
+}
+
+message CircuitResult {
+  // The measured value per mode.
+  message OperationMeasuredValue {
+    // The index of the mode.
+    uint32 index = 1;
+
+    // The measured value.
+    float value = 2;
+  }
+
+  // The measured values in a shot.
+  message ShotMeasuredValue {
+    // The measurement results in the operations.
+    repeated OperationMeasuredValue measured_vals = 1;
+  }
+
+  // The measured values in a shot.
+  // The number of shots is equal to the number of elements in the repeated field.
+  repeated ShotMeasuredValue measured_vals = 1;
+}
