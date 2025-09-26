@@ -1,0 +1,31 @@
+[INVALID_REQUEST]
+  code = "INVALID_ARGUMENT"
+  message = "Invalid request parameters: {reason}"
+
+[INVALID_TOKEN]
+  code = "UNAUTHENTICATED"
+  message = "Invalid token: {reason}"
+
+[JOB_NOT_FOUND]
+  code = "NOT_FOUND"
+  message = "Job not found (ID: {job_id})."
+
+[RESOURCE_LIMIT_EXCEEDED]
+  code = "RESOURCE_EXHAUSTED"
+  message = "The job was not accepted due to current resource limits. Please try again later."
+
+[INVALID_JOB_STATE]
+  code = "FAILED_PRECONDITION"
+  message = "The job can no longer be cancelled."
+
+[INTERNAL_ERROR]
+  code = "INTERNAL"
+  message = "An internal error occurred. Please try again later."
+
+[CRITICAL_ERROR]
+  code = "INTERNAL"
+  message = "An unexpected error occurred."
+
+[SERVER_UNAVAILABLE]
+  code = "UNAVAILABLE"
+  message = "The server is currently unavailable. Please try again later."
