@@ -28,7 +28,6 @@ protobuf = "5.29.3"
 grpcio = "1.71.0"
 grpcio-tools = "1.71.0"
 grpcio-health-checking = "1.71.0"
-grpcio-reflection = "1.71.0"
 boto3 = "1.34.129"
 mypy-boto3-dynamodb = "1.39.0"
 ```

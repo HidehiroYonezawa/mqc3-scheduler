@@ -9,13 +9,12 @@ from copy import deepcopy
 
 import boto3
 import grpc
-from grpc_health.v1 import health, health_pb2, health_pb2_grpc
-from grpc_reflection.v1alpha import reflection
+from grpc_health.v1 import health, health_pb2_grpc
 
 from backend_manager.backend_manager import BackendManager
 from job_manager.job_manager import JobManager
 from job_manager.job_repository import JobRepository
-from pb.mqc3_cloud.scheduler.v1 import execution_pb2, execution_pb2_grpc, submission_pb2, submission_pb2_grpc
+from pb.mqc3_cloud.scheduler.v1 import execution_pb2_grpc, submission_pb2_grpc
 from server_execution import ExecutionServer
 from server_submission import SubmissionServer
 from utility import AWSCredentials
@@ -86,7 +85,7 @@ def get_ssm_parameter(name: str, aws_credentials: AWSCredentials) -> str:
 
 
 # Server startup function
-def serve(args: argparse.Namespace) -> None:  # noqa: PLR0915, PLR0914
+def serve(args: argparse.Namespace) -> None:
     """Start server and wait for termination.
 
     Args:
@@ -207,13 +206,6 @@ def serve(args: argparse.Namespace) -> None:  # noqa: PLR0915, PLR0914
         ),
         server=server_submission,
     )
-    service_names_submission = (
-        submission_pb2.DESCRIPTOR.services_by_name["SubmissionService"].full_name,
-        health_pb2.DESCRIPTOR.services_by_name["Health"].full_name,
-        reflection.SERVICE_NAME,
-    )
-    reflection.enable_server_reflection(service_names_submission, server_submission)
-
     health_pb2_grpc.add_HealthServicer_to_server(
         servicer=health.HealthServicer(
             experimental_non_blocking=True,
@@ -221,12 +213,6 @@ def serve(args: argparse.Namespace) -> None:  # noqa: PLR0915, PLR0914
         ),
         server=server_execution,
     )
-    service_names_execution = (
-        execution_pb2.DESCRIPTOR.services_by_name["ExecutionService"].full_name,
-        health_pb2.DESCRIPTOR.services_by_name["Health"].full_name,
-        reflection.SERVICE_NAME,
-    )
-    reflection.enable_server_reflection(service_names_execution, server_execution)
 
     # Start servers
     server_submission.add_insecure_port(args.port_for_submission)
