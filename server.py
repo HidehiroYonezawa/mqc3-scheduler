@@ -9,9 +9,10 @@ from copy import deepcopy
 
 import boto3
 import grpc
-from backend_manager.backend_manager import BackendManager
 from grpc_health.v1 import health, health_pb2, health_pb2_grpc
 from grpc_reflection.v1alpha import reflection
+
+from backend_manager.backend_manager import BackendManager
 from job_manager.job_manager import JobManager
 from job_manager.job_repository import JobRepository
 from pb.mqc3_cloud.scheduler.v1 import execution_pb2, execution_pb2_grpc, submission_pb2, submission_pb2_grpc
