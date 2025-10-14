@@ -200,7 +200,13 @@ def serve(args: argparse.Namespace) -> None:  # noqa: PLR0915, PLR0914
         server=server_execution,
     )
 
-    health_pb2_grpc.add_HealthServicer_to_server(health.HealthServicer(), server_submission)
+    health_pb2_grpc.add_HealthServicer_to_server(
+        servicer=health.HealthServicer(
+            experimental_non_blocking=True,
+            experimental_thread_pool=futures.ThreadPoolExecutor(1),
+        ),
+        server=server_submission,
+    )
     service_names_submission = (
         submission_pb2.DESCRIPTOR.services_by_name["SubmissionService"].full_name,
         health_pb2.DESCRIPTOR.services_by_name["Health"].full_name,
@@ -208,7 +214,13 @@ def serve(args: argparse.Namespace) -> None:  # noqa: PLR0915, PLR0914
     )
     reflection.enable_server_reflection(service_names_submission, server_submission)
 
-    health_pb2_grpc.add_HealthServicer_to_server(health.HealthServicer(), server_execution)
+    health_pb2_grpc.add_HealthServicer_to_server(
+        servicer=health.HealthServicer(
+            experimental_non_blocking=True,
+            experimental_thread_pool=futures.ThreadPoolExecutor(1),
+        ),
+        server=server_execution,
+    )
     service_names_execution = (
         execution_pb2.DESCRIPTOR.services_by_name["ExecutionService"].full_name,
         health_pb2.DESCRIPTOR.services_by_name["Health"].full_name,
